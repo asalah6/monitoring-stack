@@ -68,7 +68,7 @@ This repository contains Infrastructure-as-Code (IaC) for deploying a production
 
 1. **Clone the repository**
    ```bash
-   git clone https://gitlab.se.wt.de/data-science/mlops/monitoring.git
+   git clone https://github.com/asalah6/monitoring-stack.git
    cd monitoring
    ```
 
@@ -168,25 +168,6 @@ monitoring/
     └── cleanup.sh                    # Remove test app when done
 ```
 
-## Cluster Information
-
-**Kubernetes Version**: v1.24.13  
-**Container Runtime**: Docker 20.10.21  
-**Nodes**: 7 (3 control plane + 4 workers)  
-**Rancher**: Active (cattle-system namespace)  
-**Istio**: Active with ingress gateway
-
-**Control Plane Nodes**:
-- ranch1-cl4-m01 (172.17.98.221)
-- ranch1-cl4-m02 (172.17.98.222)  
-- ranch1-cl4-m03 (172.17.98.223)
-
-**Worker Nodes**:
-- ranch1-cl4-w01 (172.17.98.224)
-- ranch1-cl4-w02 (172.17.98.225)
-- ranch1-cl4-w04 (picasso)
-- ranch1-cl4-w05 (vangogh)
-
 ## Installed Components
 
 ### Prometheus Stack (v45.31.1)
@@ -213,9 +194,6 @@ prometheus-prometheus-node-exporter-*    # Node exporters (DaemonSet)
 - **Pre-configured dashboards**: Node Exporter, Kubernetes Cluster
 - **Datasources**: Prometheus and Loki (pre-configured)
 - **Persistence**: 10GB PVC for dashboards and settings
-- **External access**: https://monitoring.rc.ds.wt.de
-
-**Internal Access**: http://grafana.monitoring.svc.cluster.local
 
 **Pods Running**:
 ```
