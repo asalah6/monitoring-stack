@@ -1,0 +1,58 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: myapp
+  namespace: monitoring  # Change to your namespace
+  labels:
+    # CRITICAL: This label tells Prometheus Operator to scrape this ServiceMonitor
+    # The value 'prometheus' matches the prometheus.prometheusSpec.serviceMonitorSelector in values.yaml
+    release: prometheus
+    app: myapp
+spec:
+  # Select services to monitor based on labels
+  selector:
+    matchLabels:
+      app: myapp
+  
+  # Define which endpoints to scrape
+  endpoints:
+  - port: http  # Must match the port name in the Service
+    path: /metrics
+    interval: 30s  # How often to scrape metrics
+    scrapeTimeout: 10s
+    
+    # Optional: Add relabeling rules to customize metrics
+    relabelings:
+    # Add namespace label to all metrics
+    - sourceLabels: [__meta_kubernetes_namespace]
+      targetLabel: namespace
+    
+    # Add pod name label
+    - sourceLabels: [__meta_kubernetes_pod_name]
+      targetLabel: pod
+    
+    # Add service name label
+    - sourceLabels: [__meta_kubernetes_service_name]
+      targetLabel: service
+    
+    # Optional: Add custom labels
+    - targetLabel: app
+      replacement: myapp
+    
+    # Optional: Metric relabeling (applied after scraping)
+    metricRelabelings:
+    # Drop metrics you don't need (to reduce storage)
+    # Example: drop metrics that start with 'go_' (Go runtime metrics)
+    # - sourceLabels: [__name__]
+    #   regex: 'go_.*'
+    #   action: drop
+    
+    # Rename labels if needed
+    # - sourceLabels: [old_label]
+    #   targetLabel: new_label
+  
+  # Optional: Specify which namespaces to search for Services
+  # If omitted, only searches in the same namespace as ServiceMonitor
+  namespaceSelector:
+    matchNames:
+    - monitoring  # Change to your namespace

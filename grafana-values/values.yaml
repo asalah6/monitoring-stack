@@ -1,0 +1,87 @@
+# Grafana Minimal Configuration
+# GDPR compliant monitoring setup
+
+# Admin password
+adminPassword: admin123
+
+# Persistence
+persistence:
+  enabled: true
+  size: 10Gi
+
+# Datasources
+datasources:
+  datasources.yaml:
+    apiVersion: 1
+    datasources:
+    - name: Prometheus
+      type: prometheus
+      url: http://prometheus-prometheus.monitoring.svc.cluster.local:9090
+      access: proxy
+      isDefault: true
+      editable: true
+    - name: Loki
+      type: loki
+      url: http://loki-gateway.monitoring.svc.cluster.local
+      access: proxy
+      editable: true
+
+# Dashboard providers
+dashboardProviders:
+  dashboardproviders.yaml:
+    apiVersion: 1
+    providers:
+    - name: 'default'
+      orgId: 1
+      folder: ''
+      type: file
+      disableDeletion: false
+      editable: true
+      options:
+        path: /var/lib/grafana/dashboards/default
+
+# Pre-configured dashboards
+dashboards:
+  default:
+    node-exporter:
+      gnetId: 1860
+      revision: 31
+      datasource: Prometheus
+    kubernetes-cluster:
+      gnetId: 7249
+      revision: 1
+      datasource: Prometheus
+
+# Grafana configuration
+grafana.ini:
+  server:
+    root_url: https://monitoring.rc.ds.wt.de
+  security:
+    admin_user: admin
+  analytics:
+    reporting_enabled: false
+    check_for_updates: false
+  # Disable Grafana Live to prevent WebSocket errors
+  live:
+    max_connections: 0
+
+# Sidecar for loading dashboards from ConfigMaps
+sidecar:
+  dashboards:
+    enabled: true
+    label: grafana_dashboard
+    labelValue: "1"
+    folder: /tmp/dashboards
+    searchNamespace: monitoring
+    provider:
+      allowUiUpdates: true
+      foldersFromFilesStructure: true
+
+# Resources
+resources:
+  requests:
+    cpu: 250m
+    memory: 512Mi
+  limits:
+    cpu: 1000m
+    memory: 1Gi

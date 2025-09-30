@@ -1,0 +1,143 @@
+# Promtail Configuration for Kubernetes v1.24.13
+# Compatible with Loki 3.5.5 (loki-6.41.1)
+# Deploys as DaemonSet to scrape logs from all nodes
+
+# Promtail configuration
+config:
+  # Loki endpoint - adjust if using different Loki service name
+  clients:
+    - url: http://loki-gateway.monitoring.svc.cluster.local/loki/api/v1/push
+      tenant_id: ""
+  
+  # Server configuration
+  server:
+    http_listen_port: 3101
+    grpc_listen_port: 0
+  
+  # Positions - where to store the read positions
+  positions:
+    filename: /run/promtail/positions.yaml
+  
+  # Scrape configuration
+  scrape_configs:
+    # Kubernetes pod logs
+    - job_name: kubernetes-pods
+      kubernetes_sd_configs:
+        - role: pod
+      
+      pipeline_stages:
+        # Extract metadata
+        - docker: {}
+        
+        # Drop empty lines
+        - match:
+            selector: '{job="kubernetes-pods"}'
+            stages:
+              - drop:
+                  expression: "^\\s*$"
+      
+      relabel_configs:
+        # Add namespace label
+        - source_labels:
+            - __meta_kubernetes_pod_namespace
+          target_label: namespace
+        
+        # Add pod name label
+        - source_labels:
+            - __meta_kubernetes_pod_name
+          target_label: pod
+        
+        # Add container name label
+        - source_labels:
+            - __meta_kubernetes_pod_container_name
+          target_label: container
+        
+        # Add node name label
+        - source_labels:
+            - __meta_kubernetes_pod_node_name
+          target_label: node
+        
+        # Add app label if exists
+        - source_labels:
+            - __meta_kubernetes_pod_label_app
+          target_label: app
+        
+        # Add job label based on app
+        - source_labels:
+            - __meta_kubernetes_pod_label_app
+          target_label: job
+        
+        # Use pod name as job if app label doesn't exist
+        - source_labels:
+            - __meta_kubernetes_pod_name
+          target_label: job
+          regex: ""
+        
+        # Path to logs
+        - source_labels:
+            - __meta_kubernetes_pod_uid
+            - __meta_kubernetes_pod_container_name
+          target_label: __path__
+          separator: /
+          replacement: /var/log/pods/*$1/*.log
+    
+    # Kubernetes system components
+    - job_name: kubernetes-system
+      static_configs:
+        - targets:
+            - localhost
+          labels:
+            job: kubernetes-system
+            __path__: /var/log/*.log
+
+# DaemonSet configuration - runs on every node
+daemonset:
+  enabled: true
+
+# Resources
+resources:
+  limits:
+    cpu: 200m
+    memory: 256Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+# Security context
+securityContext:
+  privileged: true
+  runAsUser: 0
+
+# Service Monitor for Prometheus (optional)
+serviceMonitor:
+  enabled: true
+  labels:
+    release: prometheus
+  interval: 30s
+
+# Tolerations - allow running on all nodes including control plane
+tolerations:
+  - effect: NoSchedule
+    operator: Exists
+  - effect: NoExecute
+    operator: Exists
+
+# Custom volume mounts for Docker logs in non-standard location
+# This cluster stores Docker logs in /mnt/data/docker/containers instead of /var/lib/docker/containers
+# Use DirectoryOrCreate to handle nodes that might not have this path
+extraVolumes:
+  - name: docker-data
+    hostPath:
+      path: /mnt/data/docker/containers
+      type: DirectoryOrCreate
+
+extraVolumeMounts:
+  - name: docker-data
+    mountPath: /mnt/data/docker/containers
+    readOnly: true
+
+# Update strategy
+updateStrategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxUnavailable: 1

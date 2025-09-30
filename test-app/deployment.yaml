@@ -1,0 +1,91 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: myapp
+  namespace: monitoring
+  labels:
+    app: myapp
+    version: v1.0.0
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: myapp
+  template:
+    metadata:
+      labels:
+        app: myapp
+        version: v1.0.0
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+        prometheus.io/path: "/metrics"
+    spec:
+      initContainers:
+      # Install Python dependencies
+      - name: setup
+        image: python:3.11-alpine
+        command:
+        - sh
+        - -c
+        - |
+          apk add --no-cache gcc musl-dev python3-dev linux-headers
+          pip install --no-cache-dir -r /app/requirements.txt --target /packages
+        volumeMounts:
+        - name: app-code
+          mountPath: /app
+        - name: packages
+          mountPath: /packages
+      containers:
+      - name: myapp
+        image: python:3.11-alpine
+        command:
+        - sh
+        - -c
+        - |
+          export PYTHONPATH=/packages:$PYTHONPATH
+          python /app/app.py
+        ports:
+        - name: http
+          containerPort: 8000
+          protocol: TCP
+        env:
+        - name: LOG_FORMAT
+          value: "json"
+        - name: LOG_LEVEL
+          value: "INFO"
+        - name: PYTHONUNBUFFERED
+          value: "1"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: http
+          initialDelaySeconds: 20
+          periodSeconds: 5
+          timeoutSeconds: 3
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+        volumeMounts:
+        - name: app-code
+          mountPath: /app
+          readOnly: true
+        - name: packages
+          mountPath: /packages
+      volumes:
+      - name: app-code
+        configMap:
+          name: myapp-code
+      - name: packages
+        emptyDir: {}

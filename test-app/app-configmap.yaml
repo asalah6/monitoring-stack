@@ -1,0 +1,281 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: myapp-code
+  namespace: monitoring
+data:
+  app.py: |
+    """
+    Example FastAPI application with Prometheus metrics and structured logging for Loki.
+    
+    This application demonstrates:
+    - Proper metric naming convention: appname_metricname (e.g., myapp_http_requests_total)
+    - Different metric types: Counter, Histogram, Gauge
+    - Structured JSON logging for Loki
+    - HTTP request tracking with middleware
+    """
+    
+    from fastapi import FastAPI, Request, HTTPException
+    from prometheus_client import Counter, Histogram, Gauge, generate_latest, CONTENT_TYPE_LATEST
+    from starlette.responses import Response
+    from pythonjsonlogger import jsonlogger
+    import logging
+    import time
+    import psutil
+    import os
+    
+    # Configure JSON logging for Loki
+    logHandler = logging.StreamHandler()
+    formatter = jsonlogger.JsonFormatter(
+        '%(asctime)s %(name)s %(levelname)s %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+    logHandler.setFormatter(formatter)
+    logger = logging.getLogger()
+    logger.addHandler(logHandler)
+    logger.setLevel(getattr(logging, os.getenv('LOG_LEVEL', 'INFO')))
+    
+    app = FastAPI(title="MyApp", description="Example application with monitoring")
+    
+    # =============================================================================
+    # METRICS DEFINITIONS
+    # All metrics follow the pattern: appname_metricname
+    # =============================================================================
+    
+    # Counter: Monotonically increasing value (use _total suffix)
+    http_requests_total = Counter(
+        'myapp_http_requests_total',
+        'Total HTTP requests',
+        ['method', 'endpoint', 'status']
+    )
+    
+    errors_total = Counter(
+        'myapp_errors_total',
+        'Total errors',
+        ['error_type']
+    )
+    
+    # Histogram: Observations of values (use _seconds or _bytes suffix)
+    request_duration = Histogram(
+        'myapp_request_duration_seconds',
+        'HTTP request duration in seconds',
+        ['method', 'endpoint'],
+        buckets=[0.01, 0.05, 0.1, 0.5, 1.0, 2.5, 5.0]
+    )
+    
+    # Gauge: Value that can go up or down (no suffix)
+    active_connections = Gauge(
+        'myapp_active_connections',
+        'Number of active connections'
+    )
+    
+    memory_usage = Gauge(
+        'myapp_memory_usage_bytes',
+        'Memory usage in bytes'
+    )
+    
+    database_pool_size = Gauge(
+        'myapp_database_pool_size',
+        'Database connection pool size'
+    )
+    
+    queue_size = Gauge(
+        'myapp_queue_size',
+        'Message queue size'
+    )
+    
+    # Business metrics examples
+    orders_processed = Counter(
+        'myapp_orders_processed_total',
+        'Total orders processed',
+        ['status']
+    )
+    
+    payment_amount = Counter(
+        'myapp_payment_amount_total',
+        'Total payment amount processed',
+        ['currency']
+    )
+    
+    inventory_level = Gauge(
+        'myapp_inventory_level',
+        'Current inventory level',
+        ['product_id']
+    )
+    
+    # =============================================================================
+    # MIDDLEWARE - Automatic request tracking
+    # =============================================================================
+    
+    @app.middleware("http")
+    async def track_requests(request: Request, call_next):
+        """Track all HTTP requests with metrics and structured logging."""
+        active_connections.inc()
+        start_time = time.time()
+        
+        # Update memory usage
+        process = psutil.Process()
+        memory_usage.set(process.memory_info().rss)
+        
+        # Log request start
+        logger.info(
+            "Request started",
+            extra={
+                "method": request.method,
+                "path": request.url.path,
+                "client_ip": request.client.host
+            }
+        )
+        
+        try:
+            response = await call_next(request)
+            duration = time.time() - start_time
+            
+            # Record metrics
+            http_requests_total.labels(
+                method=request.method,
+                endpoint=request.url.path,
+                status=response.status_code
+            ).inc()
+            
+            request_duration.labels(
+                method=request.method,
+                endpoint=request.url.path
+            ).observe(duration)
+            
+            # Log request completion
+            logger.info(
+                "Request completed",
+                extra={
+                    "method": request.method,
+                    "path": request.url.path,
+                    "status_code": response.status_code,
+                    "duration": duration,
+                    "client_ip": request.client.host
+                }
+            )
+            
+            return response
+            
+        except Exception as e:
+            duration = time.time() - start_time
+            errors_total.labels(error_type=type(e).__name__).inc()
+            
+            logger.error(
+                "Request failed",
+                extra={
+                    "method": request.method,
+                    "path": request.url.path,
+                    "error": str(e),
+                    "error_type": type(e).__name__,
+                    "duration": duration
+                },
+                exc_info=True
+            )
+            raise
+            
+        finally:
+            active_connections.dec()
+    
+    # =============================================================================
+    # API ENDPOINTS
+    # =============================================================================
+    
+    @app.get("/")
+    async def root():
+        """Root endpoint."""
+        return {
+            "message": "MyApp is running!",
+            "endpoints": {
+                "metrics": "/metrics",
+                "health": "/health",
+                "ready": "/ready",
+                "api": {
+                    "users": "/api/users",
+                    "orders": "/api/orders"
+                }
+            }
+        }
+    
+    @app.get("/api/users")
+    async def get_users():
+        """Example endpoint - get users."""
+        logger.info("Fetching users", extra={"action": "get_users"})
+        
+        # Simulate some business logic
+        database_pool_size.set(10)  # Example: 10 connections in pool
+        
+        return {
+            "users": [
+                {"id": 1, "name": "Alice"},
+                {"id": 2, "name": "Bob"}
+            ]
+        }
+    
+    @app.post("/api/users")
+    async def create_user(request: Request):
+        """Example endpoint - create user."""
+        body = await request.json()
+        logger.info(
+            "Creating user",
+            extra={"action": "create_user", "user_name": body.get("name")}
+        )
+        return {"id": 3, "name": body.get("name"), "created": True}
+    
+    @app.post("/api/orders")
+    async def create_order(request: Request):
+        """Example endpoint - create order."""
+        body = await request.json()
+        
+        # Record business metrics
+        orders_processed.labels(status="completed").inc()
+        payment_amount.labels(currency="USD").inc(body.get("amount", 0))
+        inventory_level.labels(product_id=body.get("product_id", "unknown")).dec(1)
+        
+        logger.info(
+            "Order created",
+            extra={
+                "action": "create_order",
+                "order_id": body.get("order_id"),
+                "amount": body.get("amount"),
+                "currency": "USD"
+            }
+        )
+        
+        return {"order_id": body.get("order_id"), "status": "completed"}
+    
+    @app.get("/api/error")
+    async def trigger_error():
+        """Endpoint to test error tracking."""
+        logger.error("Intentional error triggered", extra={"action": "test_error"})
+        raise HTTPException(status_code=500, detail="This is a test error")
+    
+    @app.get("/health")
+    async def health():
+        """Health check endpoint."""
+        return {"status": "healthy"}
+    
+    @app.get("/ready")
+    async def ready():
+        """Readiness check endpoint."""
+        return {"status": "ready"}
+    
+    @app.get("/metrics")
+    async def metrics():
+        """Prometheus metrics endpoint."""
+        return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
+    
+    # =============================================================================
+    # STARTUP
+    # =============================================================================
+    
+    if __name__ == "__main__":
+        import uvicorn
+        uvicorn.run(app, host="0.0.0.0", port=8000)
+  
+  requirements.txt: |
+    fastapi==0.104.1
+    uvicorn[standard]==0.24.0
+    prometheus-client==0.19.0
+    python-json-logger==2.0.7
+    psutil==5.9.6

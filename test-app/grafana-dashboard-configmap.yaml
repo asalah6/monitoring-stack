@@ -1,0 +1,420 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: myapp-dashboard
+  namespace: monitoring  # Change to your namespace
+  labels:
+    # CRITICAL: This label tells Grafana to automatically discover and load this dashboard
+    grafana_dashboard: "1"
+    app: myapp
+data:
+  myapp-dashboard.json: |
+    {
+      "id": null,
+      "uid": "myapp-metrics",
+      "title": "MyApp Metrics Dashboard",
+        "tags": ["myapp", "application", "custom"],
+        "timezone": "browser",
+        "schemaVersion": 16,
+        "version": 1,
+        "refresh": "30s",
+        "panels": [
+          {
+            "id": 1,
+            "gridPos": {
+              "h": 8,
+              "w": 12,
+              "x": 0,
+              "y": 0
+            },
+            "type": "graph",
+            "title": "HTTP Request Rate",
+            "targets": [
+              {
+                "expr": "sum(rate(myapp_http_requests_total[5m])) by (status)",
+                "legendFormat": "Status {{status}}",
+                "refId": "A"
+              }
+            ],
+            "yaxes": [
+              {
+                "format": "reqps",
+                "label": "Requests/sec"
+              },
+              {
+                "format": "short"
+              }
+            ],
+            "xaxis": {
+              "show": true
+            },
+            "legend": {
+              "show": true,
+              "alignAsTable": true,
+              "avg": true,
+              "current": true,
+              "max": true,
+              "values": true
+            }
+          },
+          {
+            "id": 2,
+            "gridPos": {
+              "h": 8,
+              "w": 12,
+              "x": 12,
+              "y": 0
+            },
+            "type": "graph",
+            "title": "Request Duration (p95, p99)",
+            "targets": [
+              {
+                "expr": "histogram_quantile(0.95, sum(rate(myapp_request_duration_seconds_bucket[5m])) by (le, endpoint))",
+                "legendFormat": "p95 {{endpoint}}",
+                "refId": "A"
+              },
+              {
+                "expr": "histogram_quantile(0.99, sum(rate(myapp_request_duration_seconds_bucket[5m])) by (le, endpoint))",
+                "legendFormat": "p99 {{endpoint}}",
+                "refId": "B"
+              }
+            ],
+            "yaxes": [
+              {
+                "format": "s",
+                "label": "Duration"
+              },
+              {
+                "format": "short"
+              }
+            ],
+            "xaxis": {
+              "show": true
+            }
+          },
+          {
+            "id": 3,
+            "gridPos": {
+              "h": 8,
+              "w": 8,
+              "x": 0,
+              "y": 8
+            },
+            "type": "stat",
+            "title": "Active Connections",
+            "targets": [
+              {
+                "expr": "myapp_active_connections",
+                "refId": "A"
+              }
+            ],
+            "options": {
+              "reduceOptions": {
+                "values": false,
+                "calcs": ["lastNotNull"]
+              },
+              "orientation": "auto",
+              "textMode": "auto",
+              "colorMode": "value",
+              "graphMode": "area"
+            },
+            "fieldConfig": {
+              "defaults": {
+                "unit": "short",
+                "color": {
+                  "mode": "thresholds"
+                },
+                "thresholds": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "value": null,
+                      "color": "green"
+                    },
+                    {
+                      "value": 50,
+                      "color": "yellow"
+                    },
+                    {
+                      "value": 100,
+                      "color": "red"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "id": 4,
+            "gridPos": {
+              "h": 8,
+              "w": 8,
+              "x": 8,
+              "y": 8
+            },
+            "type": "stat",
+            "title": "Error Rate",
+            "targets": [
+              {
+                "expr": "sum(rate(myapp_errors_total[5m]))",
+                "refId": "A"
+              }
+            ],
+            "options": {
+              "reduceOptions": {
+                "values": false,
+                "calcs": ["lastNotNull"]
+              },
+              "orientation": "auto",
+              "textMode": "auto",
+              "colorMode": "value",
+              "graphMode": "area"
+            },
+            "fieldConfig": {
+              "defaults": {
+                "unit": "errors/sec",
+                "color": {
+                  "mode": "thresholds"
+                },
+                "thresholds": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "value": null,
+                      "color": "green"
+                    },
+                    {
+                      "value": 0.1,
+                      "color": "yellow"
+                    },
+                    {
+                      "value": 1,
+                      "color": "red"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "id": 5,
+            "gridPos": {
+              "h": 8,
+              "w": 8,
+              "x": 16,
+              "y": 8
+            },
+            "type": "stat",
+            "title": "Memory Usage",
+            "targets": [
+              {
+                "expr": "myapp_memory_usage_bytes",
+                "refId": "A"
+              }
+            ],
+            "options": {
+              "reduceOptions": {
+                "values": false,
+                "calcs": ["lastNotNull"]
+              },
+              "orientation": "auto",
+              "textMode": "auto",
+              "colorMode": "value",
+              "graphMode": "area"
+            },
+            "fieldConfig": {
+              "defaults": {
+                "unit": "bytes",
+                "color": {
+                  "mode": "thresholds"
+                },
+                "thresholds": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "value": null,
+                      "color": "green"
+                    },
+                    {
+                      "value": 500000000,
+                      "color": "yellow"
+                    },
+                    {
+                      "value": 1000000000,
+                      "color": "red"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "id": 6,
+            "gridPos": {
+              "h": 8,
+              "w": 24,
+              "x": 0,
+              "y": 16
+            },
+            "type": "table",
+            "title": "Request Breakdown by Endpoint",
+            "targets": [
+              {
+                "expr": "sum(rate(myapp_http_requests_total[5m])) by (endpoint, method, status)",
+                "format": "table",
+                "instant": true,
+                "refId": "A"
+              }
+            ],
+            "transformations": [
+              {
+                "id": "organize",
+                "options": {
+                  "excludeByName": {
+                    "Time": true
+                  },
+                  "indexByName": {},
+                  "renameByName": {
+                    "endpoint": "Endpoint",
+                    "method": "Method",
+                    "status": "Status",
+                    "Value": "Requests/sec"
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "id": 7,
+            "gridPos": {
+              "h": 8,
+              "w": 12,
+              "x": 0,
+              "y": 24
+            },
+            "type": "graph",
+            "title": "Business Metrics - Orders",
+            "targets": [
+              {
+                "expr": "sum(rate(myapp_orders_processed_total[5m])) by (status)",
+                "legendFormat": "Orders {{status}}",
+                "refId": "A"
+              }
+            ],
+            "yaxes": [
+              {
+                "format": "ops",
+                "label": "Orders/sec"
+              },
+              {
+                "format": "short"
+              }
+            ]
+          },
+          {
+            "id": 8,
+            "gridPos": {
+              "h": 8,
+              "w": 12,
+              "x": 12,
+              "y": 24
+            },
+            "type": "graph",
+            "title": "Payment Processing",
+            "targets": [
+              {
+                "expr": "sum(rate(myapp_payment_amount_total[5m])) by (currency)",
+                "legendFormat": "{{currency}}",
+                "refId": "A"
+              }
+            ],
+            "yaxes": [
+              {
+                "format": "currencyUSD",
+                "label": "Amount/sec"
+              },
+              {
+                "format": "short"
+              }
+            ]
+          }
+        ],
+        "templating": {
+          "list": [
+            {
+              "name": "namespace",
+              "type": "query",
+              "datasource": "Prometheus",
+              "query": "label_values(myapp_http_requests_total, namespace)",
+              "current": {
+                "selected": true,
+                "text": "monitoring",
+                "value": "monitoring"
+              },
+              "hide": 0,
+              "includeAll": false,
+              "multi": false,
+              "refresh": 1
+            },
+            {
+              "name": "pod",
+              "type": "query",
+              "datasource": "Prometheus",
+              "query": "label_values(myapp_http_requests_total{namespace=\"$namespace\"}, pod)",
+              "current": {},
+              "hide": 0,
+              "includeAll": true,
+              "multi": true,
+              "refresh": 1
+            }
+          ]
+        },
+        "time": {
+          "from": "now-6h",
+          "to": "now"
+        },
+        "timepicker": {
+          "refresh_intervals": ["5s", "10s", "30s", "1m", "5m", "15m", "30m", "1h", "2h", "1d"]
+        }
+      }
+    }
+---
+# Simplified version - minimal dashboard for quick testing
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: myapp-dashboard-simple
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+    app: myapp
+data:
+  myapp-simple.json: |
+    {
+      "title": "MyApp Simple Dashboard",
+      "panels": [
+          {
+            "id": 1,
+            "type": "graph",
+            "title": "Request Rate",
+            "targets": [
+              {
+                "expr": "rate(myapp_http_requests_total[5m])"
+              }
+            ],
+            "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0}
+          },
+          {
+            "id": 2,
+            "type": "stat",
+            "title": "Total Requests",
+            "targets": [
+              {
+                "expr": "sum(myapp_http_requests_total)"
+              }
+            ],
+            "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0}
+          }
+        ]
+      }
+    }
