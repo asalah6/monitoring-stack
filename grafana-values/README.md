@@ -61,11 +61,6 @@ Login:
 - Username: `admin`
 - Password: `admin123` (as configured in values.yaml)
 
-### Method 2: Istio VirtualService (Production)
-
-Access via: https://monitoring.rc.ds.wt.de
-
-See `/virtualservice/README.md` for routing configuration.
 
 ## Configuration Details
 
